@@ -4,8 +4,8 @@ use cosmwasm_std::{to_binary, Binary, Deps, DepsMut, Env, MessageInfo, Response,
 use cw2::set_contract_version;
 
 use crate::error::ContractError;
-use crate::msg::{InstantiateMsg, NameResponse, QueryMsg, RankResponse};
-use crate::state::{State, STATE};
+use crate::msg::{ExecuteMsg, InstantiateMsg, NameResponse, QueryMsg, RankResponse, ScoreResponse};
+use crate::state::{State, STORAGE};
 
 // version info for migration info
 const CONTRACT_NAME: &str = "crates.io:clicker";
@@ -23,16 +23,54 @@ pub fn instantiate(
         rank: msg.rank,
         owner: info.sender.clone(),
         name: msg.name,
+        scores: vec![],
     };
     // We're setting the contract version using a helper function we imported
     set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
     // We're storing state in a special variable called "STATE"
-    STATE.save(deps.storage, &state)?;
+    STORAGE.save(deps.storage, &state)?;
     // Sending a response back to the caller
     Ok(Response::new()
         .add_attribute("method", "instantiate")
         .add_attribute("owner", info.sender)
-        .add_attribute("rank", msg.rank.to_string()))
+        .add_attribute("rank", msg.rank.to_string())
+        .add_attribute("scores", "".to_string()))
+}
+
+#[cfg_attr(not(feature = "library"), entry_point)]
+pub fn execute(
+    deps: DepsMut,
+    _env: Env,
+    info: MessageInfo,
+    msg: ExecuteMsg,
+) -> Result<Response, ContractError> {
+    match msg {
+        ExecuteMsg::UpsertScore { score } => try_upsert_score(deps, info, score),
+    }
+}
+
+fn try_upsert_score(
+    deps: DepsMut,
+    info: MessageInfo,
+    score: u16,
+) -> Result<Response, ContractError> {
+    let mut state = STORAGE.load(deps.storage)?;
+    let sender = info.sender.clone();
+    let scores = &mut state.scores;
+    let index = scores.iter().position(|(s, _)| s == &sender);
+    match index {
+        Some(i) => {
+            scores[i].1 = score;
+        }
+        None => {
+            scores.push((sender.clone(), score));
+        }
+    }
+    STORAGE.save(deps.storage, &state)?;
+    Ok(Response::new()
+        .add_attribute("method", "upsert")
+        .add_attribute("player", info.sender)
+        .add_attribute("score", score.to_string()))
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
@@ -40,15 +78,23 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
         QueryMsg::GetRank {} => to_binary(&query_rank(deps)?),
         QueryMsg::GetName {} => to_binary(&query_name(deps)?),
+        QueryMsg::GetScores {} => to_binary(&query_scores(deps)?),
     }
 }
 
 fn query_rank(deps: Deps) -> StdResult<RankResponse> {
-    let state = STATE.load(deps.storage)?;
+    let state = STORAGE.load(deps.storage)?;
     Ok(RankResponse { rank: state.rank })
 }
 
 fn query_name(deps: Deps) -> StdResult<NameResponse> {
-    let state = STATE.load(deps.storage)?;
+    let state = STORAGE.load(deps.storage)?;
     Ok(NameResponse { name: state.name })
+}
+
+fn query_scores(deps: Deps) -> StdResult<ScoreResponse> {
+    let state = STORAGE.load(deps.storage)?;
+    Ok(ScoreResponse {
+        scores: state.scores,
+    })
 }

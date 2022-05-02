@@ -1,3 +1,4 @@
+use cosmwasm_std::Addr;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
@@ -10,8 +11,7 @@ pub struct InstantiateMsg {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum ExecuteMsg {
-    Increment {},
-    Reset { rank: i32 },
+    UpsertScore { score: u16 },
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -20,6 +20,7 @@ pub enum QueryMsg {
     // GetRank returns the current answer as a json-encoded number
     GetRank {},
     GetName {},
+    GetScores {},
 }
 
 // We define a custom struct for each query response
@@ -31,4 +32,9 @@ pub struct RankResponse {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct NameResponse {
     pub name: String,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct ScoreResponse {
+    pub scores: Vec<(Addr, u16)>,
 }
